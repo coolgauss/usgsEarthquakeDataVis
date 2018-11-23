@@ -1,0 +1,59 @@
+#ifndef __EARTHQUAKE2__
+    #include "$HIP/include/earthquake2.h"
+#endif
+
+// Get parameter values
+int useHeatMap = chi('useHeatmap');
+float mapcenterlon = ch('mapcenterlon');
+float mapcenterlat = ch('mapcenterlat');
+float lat = f@lat;
+float lon = f@lon;
+float mag = f@mag;
+float zoom = ch('zoom');
+
+// Mercator projection
+// Get a Mercator struct 
+Mercator merc;
+
+// Initialize zoom
+merc.zoom = zoom;
+
+// Get projected x and y
+float cx = merc->getX(mapcenterlon);
+float cy = merc->getY(mapcenterlat);
+float x = merc->getX(lon) - cx;
+float y = merc->getY(lat) - cy;
+
+// Calcualate linear magnitude
+float lmag = merc->getLinearMag(mag);
+
+// Set pscale and width attributes based on linear mag
+f@pscale = fit(lmag, 0, 5000, 4, 20)*chf('pscaleMult');  
+f@width = fit(lmag, 0, 5000, 0.2, 1)*chf('widthMult');
+
+// Heat map to color 
+if(useHeatMap){
+    float nmag = fit(f@mag, 0, 10, 0.3, 1);
+    vector heatMap = vector(chramp("heatmap", nmag));
+    @Cd = heatMap;
+}
+else{
+    @Cd = chv('constColor');
+}
+
+// For time lapse visualization
+if(chi('timeLapseVis')){
+    // Get normalized animation frames
+    float ndeltaf = merc->getNormalizedAnimFrames(@ptnum, @Frame);
+    
+    // Animatine @pscales with chramp interface
+    f@pscale *= chramp("mag", ndeltaf);
+    
+    // We are going to set the chramp values of start/end to 0.
+    // Removing points if they are outside of frame windows.
+    if(f@pscale <=0)
+        removepoint(0, @ptnum);
+}
+
+// Set position
+@P = set(x, y, 1);
